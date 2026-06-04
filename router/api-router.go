@@ -105,6 +105,11 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.POST("/waffo-pancake/amount", controller.RequestWaffoPancakeAmount)
 				selfRoute.POST("/waffo-pancake/pay", middleware.CriticalRateLimit(), controller.RequestWaffoPancakePay)
 				selfRoute.POST("/aff_transfer", controller.TransferAffQuota)
+				selfRoute.GET("/distribution/overview", controller.GetDistributionOverview)
+				selfRoute.POST("/distribution/invite-link", controller.GetDistributionInviteLink)
+				selfRoute.GET("/distribution/invites", controller.GetDistributionInvites)
+				selfRoute.GET("/distribution/commission-records", controller.GetDistributionCommissionRecords)
+				selfRoute.POST("/distribution/settle", controller.SettleDistributionCommission)
 				selfRoute.PUT("/setting", controller.UpdateUserSetting)
 
 				// 2FA routes
@@ -144,6 +149,16 @@ func SetApiRouter(router *gin.Engine) {
 				adminRoute.GET("/2fa/stats", controller.Admin2FAStats)
 				adminRoute.DELETE("/:id/2fa", controller.AdminDisable2FA)
 			}
+		}
+
+		distributionAdminRoute := apiRouter.Group("/distribution/admin")
+		distributionAdminRoute.Use(middleware.AdminAuth())
+		{
+			distributionAdminRoute.GET("/settings", controller.AdminGetDistributionSetting)
+			distributionAdminRoute.PUT("/settings", controller.AdminUpdateDistributionSetting)
+			distributionAdminRoute.GET("/commission-records", controller.AdminGetDistributionRecords)
+			distributionAdminRoute.GET("/transfers", controller.AdminGetDistributionTransfers)
+			distributionAdminRoute.GET("/invites", controller.AdminGetDistributionInvites)
 		}
 
 		// Subscription billing (plans, purchase, admin management)

@@ -113,6 +113,10 @@ func GetRedemptionById(id int) (*Redemption, error) {
 }
 
 func Redeem(key string, userId int) (quota int, err error) {
+	return RedeemWithAffCode(key, userId, "")
+}
+
+func RedeemWithAffCode(key string, userId int, temporaryAffCode string) (quota int, err error) {
 	if key == "" {
 		return 0, errors.New("未提供兑换码")
 	}
@@ -152,6 +156,14 @@ func Redeem(key string, userId int) (quota int, err error) {
 		return 0, ErrRedeemFailed
 	}
 	RecordLog(userId, LogTypeTopup, fmt.Sprintf("通过兑换码充值 %s，兑换码ID %d", logger.LogQuota(redemption.Quota), redemption.Id))
+	GrantDistributionForQuotaIncrease(DistributionGrantInput{
+		UserId:           userId,
+		IncreasedQuota:   redemption.Quota,
+		Source:           "redeem",
+		SourceId:         fmt.Sprintf("%d", redemption.Id),
+		SourceDetail:     redemption.Name,
+		TemporaryAffCode: temporaryAffCode,
+	})
 	return redemption.Quota, nil
 }
 

@@ -155,6 +155,13 @@ func Recharge(referenceId string, customerId string, callerIp string) (err error
 	}
 
 	RecordTopupLog(topUp.UserId, fmt.Sprintf("使用在线充值成功，充值金额: %v，支付金额：%d", logger.FormatQuota(int(quota)), topUp.Amount), callerIp, topUp.PaymentMethod, PaymentMethodStripe)
+	GrantDistributionForQuotaIncrease(DistributionGrantInput{
+		UserId:         topUp.UserId,
+		IncreasedQuota: int(quota),
+		Source:         PaymentProviderStripe,
+		SourceId:       referenceId,
+		SourceDetail:   topUp.PaymentMethod,
+	})
 
 	return nil
 }
@@ -387,6 +394,13 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 
 	// 事务外记录日志，避免阻塞
 	RecordTopupLog(userId, fmt.Sprintf("管理员补单成功，充值金额: %v，支付金额：%f", logger.FormatQuota(quotaToAdd), payMoney), callerIp, paymentMethod, "admin")
+	GrantDistributionForQuotaIncrease(DistributionGrantInput{
+		UserId:         userId,
+		IncreasedQuota: quotaToAdd,
+		Source:         "admin_topup_complete",
+		SourceId:       tradeNo,
+		SourceDetail:   paymentMethod,
+	})
 	return nil
 }
 func RechargeCreem(referenceId string, customerEmail string, customerName string, callerIp string) (err error) {
@@ -460,6 +474,13 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 	}
 
 	RecordTopupLog(topUp.UserId, fmt.Sprintf("使用Creem充值成功，充值额度: %v，支付金额：%.2f", quota, topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodCreem)
+	GrantDistributionForQuotaIncrease(DistributionGrantInput{
+		UserId:         topUp.UserId,
+		IncreasedQuota: int(quota),
+		Source:         PaymentProviderCreem,
+		SourceId:       referenceId,
+		SourceDetail:   topUp.PaymentMethod,
+	})
 
 	return nil
 }
@@ -522,6 +543,13 @@ func RechargeWaffo(tradeNo string, callerIp string) (err error) {
 
 	if quotaToAdd > 0 {
 		RecordTopupLog(topUp.UserId, fmt.Sprintf("Waffo充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodWaffo)
+		GrantDistributionForQuotaIncrease(DistributionGrantInput{
+			UserId:         topUp.UserId,
+			IncreasedQuota: quotaToAdd,
+			Source:         PaymentProviderWaffo,
+			SourceId:       tradeNo,
+			SourceDetail:   topUp.PaymentMethod,
+		})
 	}
 
 	return nil
@@ -583,6 +611,13 @@ func RechargeWaffoPancake(tradeNo string) (err error) {
 
 	if quotaToAdd > 0 {
 		RecordLog(topUp.UserId, LogTypeTopup, fmt.Sprintf("Waffo Pancake充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money))
+		GrantDistributionForQuotaIncrease(DistributionGrantInput{
+			UserId:         topUp.UserId,
+			IncreasedQuota: quotaToAdd,
+			Source:         PaymentProviderWaffoPancake,
+			SourceId:       tradeNo,
+			SourceDetail:   topUp.PaymentMethod,
+		})
 	}
 
 	return nil

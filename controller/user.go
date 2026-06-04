@@ -175,6 +175,12 @@ func Register(c *gin.Context) {
 		return
 	}
 	affCode := user.AffCode // this code is the inviter's code, not the user's own code
+	if affCode == "" {
+		affCode = c.Query("aff")
+	}
+	if affCode == "" {
+		affCode = c.Query("dist_id")
+	}
 	inviterId, _ := model.GetUserIdByAffCode(affCode)
 	cleanUser := model.User{
 		Username:    user.Username,
@@ -959,6 +965,13 @@ func ManageUser(c *gin.Context) {
 			}
 			model.RecordLogWithAdminInfo(user.Id, model.LogTypeManage,
 				fmt.Sprintf("管理员增加用户额度 %s", logger.LogQuota(req.Value)), adminInfo)
+			model.GrantDistributionForQuotaIncrease(model.DistributionGrantInput{
+				UserId:         user.Id,
+				IncreasedQuota: req.Value,
+				Source:         "admin",
+				SourceId:       fmt.Sprintf("admin:%d:%d:%d", adminId, user.Id, common.GetTimestamp()),
+				SourceDetail:   "admin_add_quota",
+			})
 		case "subtract":
 			if req.Value <= 0 {
 				common.ApiErrorI18n(c, i18n.MsgUserQuotaChangeZero)
@@ -1122,7 +1135,11 @@ func TopUp(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	quota, err := model.Redeem(req.Key, id)
+	temporaryAffCode := c.Query("aff")
+	if temporaryAffCode == "" {
+		temporaryAffCode = c.Query("dist_id")
+	}
+	quota, err := model.RedeemWithAffCode(req.Key, id, temporaryAffCode)
 	if err != nil {
 		if errors.Is(err, model.ErrRedeemFailed) {
 			common.ApiErrorI18n(c, i18n.MsgRedeemFailed)
