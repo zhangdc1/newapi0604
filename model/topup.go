@@ -397,7 +397,7 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 	GrantDistributionForQuotaIncrease(DistributionGrantInput{
 		UserId:         userId,
 		IncreasedQuota: quotaToAdd,
-		Source:         "admin_topup_complete",
+		Source:         DistributionSourceAdminTopupComplete,
 		SourceId:       tradeNo,
 		SourceDetail:   paymentMethod,
 	})

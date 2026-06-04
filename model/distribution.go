@@ -25,6 +25,7 @@ const (
 )
 
 const DistributionSourceCommissionSettle = "commission_settle"
+const DistributionSourceAdminTopupComplete = "admin_topup_complete"
 
 type DistributionSetting struct {
 	Id                         int   `json:"id"`
@@ -208,7 +209,7 @@ func GrantDistributionForQuotaIncrease(input DistributionGrantInput) {
 	if !setting.Enabled {
 		return
 	}
-	if input.Source == "admin" && !setting.AdminRechargeTrigger {
+	if isAdminDistributionSource(input.Source) && !setting.AdminRechargeTrigger {
 		return
 	}
 	if input.SourceId == "" {
@@ -281,6 +282,10 @@ func GrantDistributionForQuotaIncrease(input DistributionGrantInput) {
 	if err != nil {
 		common.SysLog("failed to grant distribution commission: " + err.Error())
 	}
+}
+
+func isAdminDistributionSource(source string) bool {
+	return source == "admin" || source == DistributionSourceAdminTopupComplete
 }
 
 func calculateDistributionReward(increasedQuota int, setting *DistributionSetting) int {
