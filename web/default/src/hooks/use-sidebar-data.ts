@@ -22,6 +22,7 @@ import {
   CreditCard,
   FileText,
   FlaskConical,
+  Gift,
   Key,
   LayoutDashboard,
   ListTodo,
@@ -106,6 +107,11 @@ export function useSidebarData(): SidebarData {
             icon: Wallet,
           },
           {
+            title: t('Distribution'),
+            url: '/distribution',
+            icon: Gift,
+          },
+          {
             title: t('Profile'),
             url: '/profile',
             icon: User,
@@ -140,6 +146,11 @@ export function useSidebarData(): SidebarData {
             title: t('Subscription Management'),
             url: '/subscriptions',
             icon: CreditCard,
+          },
+          {
+            title: t('Distribution Management'),
+            url: '/distribution/admin',
+            icon: Gift,
           },
           {
             title: t('System Settings'),
