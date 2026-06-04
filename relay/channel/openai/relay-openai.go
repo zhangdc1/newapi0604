@@ -178,8 +178,17 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	}
 
 	if !containStreamUsage {
-		usage = service.ResponseText2Usage(c, responseTextBuilder.String(), info.UpstreamModelName, info.GetEstimatePromptTokens())
+		if info.ChannelType == constant.ChannelTypeDeepSeek {
+			usage = service.ResponseText2UsageWithCounter(c, responseTextBuilder.String(), info.UpstreamModelName, info.GetEstimatePromptTokens(), func(model, text string) int {
+				return service.CountTextToken(text, model)
+			})
+		} else {
+			usage = service.ResponseText2Usage(c, responseTextBuilder.String(), info.UpstreamModelName, info.GetEstimatePromptTokens())
+		}
 		usage.CompletionTokens += toolCount * 7
+		if info.ChannelType == constant.ChannelTypeDeepSeek {
+			usage.UsageSource = "deepseek_estimated"
+		}
 	}
 
 	applyUsagePostProcessing(info, usage, common.StringToByteSlice(lastStreamData))
@@ -240,7 +249,8 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 		completionTokens := simpleResponse.Usage.CompletionTokens
 		if completionTokens == 0 {
 			for _, choice := range simpleResponse.Choices {
-				ctkm := service.CountTextToken(choice.Message.StringContent()+choice.Message.GetReasoningContent(), info.UpstreamModelName)
+				content := choice.Message.StringContent() + choice.Message.GetReasoningContent()
+				ctkm := service.CountTextToken(content, info.UpstreamModelName)
 				completionTokens += ctkm
 			}
 		}
@@ -248,6 +258,9 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 			PromptTokens:     info.GetEstimatePromptTokens(),
 			CompletionTokens: completionTokens,
 			TotalTokens:      info.GetEstimatePromptTokens() + completionTokens,
+		}
+		if info.ChannelType == constant.ChannelTypeDeepSeek {
+			simpleResponse.Usage.UsageSource = "deepseek_estimated"
 		}
 		usageModified = true
 	}
@@ -594,6 +607,9 @@ func applyUsagePostProcessing(info *relaycommon.RelayInfo, usage *dto.Usage, res
 
 	switch info.ChannelType {
 	case constant.ChannelTypeDeepSeek:
+		if service.ValidUsage(usage) && usage.UsageSource == "" {
+			usage.UsageSource = "deepseek_official"
+		}
 		if usage.PromptTokensDetails.CachedTokens == 0 && usage.PromptCacheHitTokens != 0 {
 			usage.PromptTokensDetails.CachedTokens = usage.PromptCacheHitTokens
 		}

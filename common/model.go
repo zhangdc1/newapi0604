@@ -23,6 +23,7 @@ var (
 		"o3",
 		"o4",
 		"chatgpt",
+		"deepseek",
 	}
 )
 

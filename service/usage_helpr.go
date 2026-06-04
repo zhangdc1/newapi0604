@@ -21,9 +21,17 @@ import (
 
 func ResponseText2Usage(c *gin.Context, responseText string, modeName string, promptTokens int) *dto.Usage {
 	common.SetContextKey(c, constant.ContextKeyLocalCountTokens, true)
+	return ResponseText2UsageWithCounter(c, responseText, modeName, promptTokens, EstimateTokenByModel)
+}
+
+func ResponseText2UsageWithCounter(c *gin.Context, responseText string, modeName string, promptTokens int, counter func(string, string) int) *dto.Usage {
+	common.SetContextKey(c, constant.ContextKeyLocalCountTokens, true)
+	if counter == nil {
+		counter = EstimateTokenByModel
+	}
 	usage := &dto.Usage{}
 	usage.PromptTokens = promptTokens
-	usage.CompletionTokens = EstimateTokenByModel(modeName, responseText)
+	usage.CompletionTokens = counter(modeName, responseText)
 	usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
 	return usage
 }

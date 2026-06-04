@@ -11,10 +11,11 @@ import (
 type Provider string
 
 const (
-	OpenAI  Provider = "openai"  // 代表 GPT-3.5, GPT-4, GPT-4o
-	Gemini  Provider = "gemini"  // 代表 Gemini 1.0, 1.5 Pro/Flash
-	Claude  Provider = "claude"  // 代表 Claude 3, 3.5 Sonnet
-	Unknown Provider = "unknown" // 兜底默认
+	OpenAI   Provider = "openai" // 代表 GPT-3.5, GPT-4, GPT-4o
+	Gemini   Provider = "gemini" // 代表 Gemini 1.0, 1.5 Pro/Flash
+	Claude   Provider = "claude" // 代表 Claude 3, 3.5 Sonnet
+	DeepSeek Provider = "deepseek"
+	Unknown  Provider = "unknown" // 兜底默认
 )
 
 // multipliers 定义不同厂商的计费权重
@@ -43,6 +44,9 @@ var (
 		OpenAI: {
 			Word: 1.02, Number: 1.55, CJK: 0.85, Symbol: 0.4, MathSymbol: 2.68, URLDelim: 1.0, AtSign: 2.0, Emoji: 2.12, Newline: 0.5, Space: 0.42, BasePad: 0,
 		},
+		DeepSeek: {
+			Word: 1.02, Number: 1.55, CJK: 0.85, Symbol: 0.4, MathSymbol: 2.68, URLDelim: 1.0, AtSign: 2.0, Emoji: 2.12, Newline: 0.5, Space: 0.42, BasePad: 0,
+		},
 	}
 	multipliersLock sync.RWMutex
 )
@@ -59,6 +63,8 @@ func getMultipliers(p Provider) multipliers {
 		return multipliersMap[Claude]
 	case OpenAI:
 		return multipliersMap[OpenAI]
+	case DeepSeek:
+		return multipliersMap[DeepSeek]
 	default:
 		// 默认兜底 (按 OpenAI 的算)
 		return multipliersMap[OpenAI]
@@ -224,6 +230,8 @@ func EstimateTokenByModel(model, text string) int {
 		return EstimateToken(Gemini, text)
 	} else if strings.Contains(model, "claude") {
 		return EstimateToken(Claude, text)
+	} else if strings.Contains(model, "deepseek") {
+		return EstimateToken(DeepSeek, text)
 	} else {
 		return EstimateToken(OpenAI, text)
 	}
