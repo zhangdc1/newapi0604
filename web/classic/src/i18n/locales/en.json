@@ -3867,6 +3867,9 @@
     "邀请用户": "Invited Users",
     "奖励次数": "Reward Count",
     "贡献充值": "Contributed Top-ups",
-    "贡献奖励": "Contributed Rewards"
+    "贡献奖励": "Contributed Rewards",
+    "??????": "Invitation reward management",
+    "?????????": "Redemption code purchase prompt",
+    "??????????": "Default: Looking for a redemption code?"
   }
 }

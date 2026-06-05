@@ -177,6 +177,22 @@ git checkout -B main origin/main
 docker build -t new-api:redevelopment-0604 .
 ```
 
+如果你已经按以下方式部署过本地构建版本，后续更新分销系统也继续使用同一套流程：
+
+```bash
+mkdir -p /opt/src
+cd /opt/src
+
+if [ ! -d newapi0604/.git ]; then
+  git clone https://github.com/zhangdc1/newapi0604.git newapi0604
+fi
+
+cd /opt/src/newapi0604
+git checkout main
+git pull origin main
+docker build -t new-api:redevelopment-0604 .
+```
+
 然后回到生产部署目录，只更新 `docker-compose.yml` 中 New API 服务的镜像：
 
 ```yaml
@@ -188,8 +204,13 @@ services:
 只应用应用服务：
 
 ```bash
+cd /opt/newapi
 docker compose up -d --no-deps new-api
+docker compose ps
+docker compose logs -f new-api
 ```
+
+这里的关键点是：只替换 `new-api` 应用容器，继续使用原来的 PostgreSQL、Redis、`.env` 和 Docker volumes。不要把生产 `.env` 覆盖成源码仓库里的示例配置，也不要初始化空数据库。
 
 不要运行：
 
@@ -214,6 +235,11 @@ docker compose logs --tail=200 new-api
 - 用户余额、令牌、渠道和设置都还在。
 - 充值页面仍然显示现有支付方式。
 - 兑换码流程仍然正常。
+- 后台 `theme.frontend` 保持为 `classic`，经典前端仍是原版样式。
+- 钱包管理左侧个人中心区域可以看到“分销中心”。
+- 如果仍看不到“分销中心”，到系统设置里的侧边栏模块管理，确认 `个人中心 -> 分销中心` 已开启。
+- 钱包管理里的“购买兑换码”按钮可以正常跳转到 `TopUpLink`。
+- 后台通用设置里的“兑换码购买提示文案”为空时，前端显示默认“在找兑换码？”；填写后显示自定义文案。
 - 用户可以打开分销中心。
 - 管理员可以打开分销管理。
 - 新邀请用户通过 `?aff=<code>` 注册时，只绑定一次邀请人。

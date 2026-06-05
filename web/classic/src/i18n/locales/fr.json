@@ -3721,6 +3721,9 @@
     "邀请用户": "Invited Users",
     "奖励次数": "Reward Count",
     "贡献充值": "Contributed Top-ups",
-    "贡献奖励": "Contributed Rewards"
+    "贡献奖励": "Contributed Rewards",
+    "??????": "Gestion des r?compenses d invitation",
+    "?????????": "Texte d invite pour acheter un code d ?change",
+    "??????????": "Par d?faut : vous cherchez un code d ?change ?"
   }
 }

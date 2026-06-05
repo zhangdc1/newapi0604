@@ -82,6 +82,7 @@ const RechargeCard = ({
   topUp,
   isSubmitting,
   topUpLink,
+  topUpLinkPrompt,
   openTopUpLink,
   userState,
   renderQuota,
@@ -614,17 +615,19 @@ const RechargeCard = ({
               style={{ width: '100%' }}
               extraText={
                 topUpLink && (
-                  <Text type='tertiary'>
-                    {t('在找兑换码？')}
-                    <Text
-                      type='secondary'
-                      underline
-                      className='cursor-pointer'
+                  <div className='flex flex-wrap items-center gap-2 pt-2'>
+                    <Text type='tertiary'>
+                      {topUpLinkPrompt || t('在找兑换码？')}
+                    </Text>
+                    <Button
+                      type='primary'
+                      theme='solid'
+                      size='large'
                       onClick={openTopUpLink}
                     >
                       {t('购买兑换码')}
-                    </Text>
-                  </Text>
+                    </Button>
+                  </div>
                 )
               }
             />

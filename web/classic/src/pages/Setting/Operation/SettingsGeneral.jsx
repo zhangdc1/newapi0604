@@ -46,6 +46,7 @@ export default function GeneralSettings(props) {
   const [showQuotaWarning, setShowQuotaWarning] = useState(false);
   const [inputs, setInputs] = useState({
     TopUpLink: '',
+    TopUpLinkPrompt: '',
     'general_setting.docs_link': '',
     'general_setting.quota_display_type': 'USD',
     'general_setting.custom_currency_symbol': '¤',
@@ -249,6 +250,16 @@ export default function GeneralSettings(props) {
                   initValue={''}
                   placeholder={t('例如发卡网站的购买链接')}
                   onChange={handleFieldChange('TopUpLink')}
+                  showClear
+                />
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.Input
+                  field={'TopUpLinkPrompt'}
+                  label={t('兑换码购买提示文案')}
+                  initValue={''}
+                  placeholder={t('默认为：在找兑换码？')}
+                  onChange={handleFieldChange('TopUpLinkPrompt')}
                   showClear
                 />
               </Col>

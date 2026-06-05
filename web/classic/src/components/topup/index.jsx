@@ -70,6 +70,7 @@ const TopUp = () => {
     statusState?.status?.min_topup || 1,
   );
   const [topUpLink, setTopUpLink] = useState('');
+  const [topUpLinkPrompt, setTopUpLinkPrompt] = useState('');
   const [enableOnlineTopUp, setEnableOnlineTopUp] = useState(
     statusState?.status?.enable_online_topup || false,
   );
@@ -680,6 +681,7 @@ const TopUp = () => {
           setMinTopUp(minTopUpValue);
           setTopUpCount(minTopUpValue);
           setTopUpLink(data.topup_link || '');
+          setTopUpLinkPrompt(data.topup_link_prompt || '');
           setTopupInfo((prev) => ({
             ...prev,
             enable_redemption: data.enable_redemption !== false,
@@ -1002,6 +1004,7 @@ const TopUp = () => {
           topUp={topUp}
           isSubmitting={isSubmitting}
           topUpLink={topUpLink}
+          topUpLinkPrompt={topUpLinkPrompt}
           openTopUpLink={openTopUpLink}
           userState={userState}
           renderQuota={renderQuota}
