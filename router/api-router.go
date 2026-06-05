@@ -159,6 +159,8 @@ func SetApiRouter(router *gin.Engine) {
 			distributionAdminRoute.GET("/commission-records", controller.AdminGetDistributionRecords)
 			distributionAdminRoute.GET("/transfers", controller.AdminGetDistributionTransfers)
 			distributionAdminRoute.GET("/invites", controller.AdminGetDistributionInvites)
+			distributionAdminRoute.GET("/agents", controller.AdminGetDistributionAgents)
+			distributionAdminRoute.PUT("/agents/:user_id", controller.AdminUpdateDistributionAgent)
 		}
 
 		// Subscription billing (plans, purchase, admin management)

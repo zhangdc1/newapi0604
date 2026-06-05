@@ -125,6 +125,8 @@ docker compose -f docker-compose.upgrade-test.yml logs -f new-api
 
 保持生产 PostgreSQL 和 Redis 完全不变。只修改 New API 应用镜像标签或应用代码路径。
 
+如果你要保持原版经典前端，启动后请确认前端主题配置为 `classic`。不要把 `theme.frontend` 切换为 `default`，除非你明确想使用新版前端。
+
 推荐的镜像标签流程：
 
 ```bash
@@ -136,10 +138,24 @@ docker compose logs -f new-api
 
 如果你在服务器本地构建：
 
-先确认服务器当前代码仓库的 GitHub 源。如果仍然指向旧仓库，需要先切换到新的仓库地址：
+注意区分两个目录：
+
+- `/opt/newapi` 或 `/opt/new-api`：生产部署目录，通常只有 `docker-compose.yml` 和 `.env`，没有 `.git` 是正常的。
+- `/opt/src/newapi0604`：源码目录，用于从 GitHub 拉取二开版本并构建镜像。
+
+不要在生产部署目录里执行 `git remote`、`git fetch`、`git checkout`，除非该目录本身就是源码仓库。
+
+先创建或进入源码目录。如果源码目录已经存在，检查它当前的 GitHub 源；如果仍然指向旧仓库，需要先切换到新的仓库地址：
 
 ```bash
-cd /opt/new-api
+mkdir -p /opt/src
+cd /opt/src
+
+if [ ! -d newapi0604/.git ]; then
+  git clone https://github.com/zhangdc1/newapi0604.git newapi0604
+fi
+
+cd /opt/src/newapi0604
 git remote -v
 git branch --show-current
 git status --short
@@ -161,7 +177,7 @@ git checkout -B main origin/main
 docker build -t new-api:redevelopment-0604 .
 ```
 
-然后只更新 `docker-compose.yml` 中 New API 服务的镜像：
+然后回到生产部署目录，只更新 `docker-compose.yml` 中 New API 服务的镜像：
 
 ```yaml
 services:

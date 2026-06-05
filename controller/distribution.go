@@ -149,3 +149,31 @@ func AdminGetDistributionInvites(c *gin.Context) {
 	pageInfo.SetItems(items)
 	common.ApiSuccess(c, pageInfo)
 }
+
+func AdminGetDistributionAgents(c *gin.Context) {
+	pageInfo := common.GetPageQuery(c)
+	items, total, err := model.SearchDistributionAgents(c.Query("keyword"), pageInfo)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(items)
+	common.ApiSuccess(c, pageInfo)
+}
+
+func AdminUpdateDistributionAgent(c *gin.Context) {
+	userId, _ := strconv.Atoi(c.Param("user_id"))
+	var req struct {
+		IsAgent bool `json:"is_agent"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if err := model.UpdateDistributionAgent(userId, req.IsAgent); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, gin.H{"user_id": userId, "is_agent": req.IsAgent})
+}

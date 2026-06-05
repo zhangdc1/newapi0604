@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -34,6 +36,15 @@ type DistributionSetting struct {
 	RewardRate                 int   `json:"reward_rate" gorm:"default:10"`
 	FixedRewardQuota           int   `json:"fixed_reward_quota" gorm:"default:0"`
 	ReferralLimit              int   `json:"referral_limit" gorm:"default:0"`
+	NormalRewardMode           int   `json:"normal_reward_mode" gorm:"default:1"`
+	NormalRewardRate           int   `json:"normal_reward_rate" gorm:"default:10"`
+	NormalFixedRewardQuota     int   `json:"normal_fixed_reward_quota" gorm:"default:0"`
+	NormalReferralLimit        int   `json:"normal_referral_limit" gorm:"default:5"`
+	AgentRewardMode            int   `json:"agent_reward_mode" gorm:"default:1"`
+	AgentRewardRate            int   `json:"agent_reward_rate" gorm:"default:10"`
+	AgentFixedRewardQuota      int   `json:"agent_fixed_reward_quota" gorm:"default:0"`
+	AgentReferralLimit         int   `json:"agent_referral_limit" gorm:"default:0"`
+	SplitRuleInitialized       bool  `json:"split_rule_initialized" gorm:"default:false"`
 	FreezeDays                 int   `json:"freeze_days" gorm:"default:0"`
 	MinSettlementQuota         int   `json:"min_settlement_quota" gorm:"default:0"`
 	AdminRechargeTrigger       bool  `json:"admin_recharge_trigger" gorm:"default:false"`
@@ -55,6 +66,7 @@ type DistributionCommissionRecord struct {
 	CommissionType   int    `json:"commission_type"`
 	RewardRate       int    `json:"reward_rate"`
 	ReferralLimit    int    `json:"referral_limit"`
+	ReferrerIsAgent  bool   `json:"referrer_is_agent" gorm:"default:false;index"`
 	FreezeUntil      int64  `json:"freeze_until" gorm:"index"`
 	Status           int    `json:"status" gorm:"default:1;index"`
 	SettledAt        int64  `json:"settled_at"`
@@ -96,6 +108,24 @@ type DistributionInviteSummary struct {
 	RewardCount         int64  `json:"reward_count"`
 }
 
+type DistributionAgentUser struct {
+	Id          int    `json:"id"`
+	Username    string `json:"username"`
+	DisplayName string `json:"display_name"`
+	Email       string `json:"email"`
+	Status      int    `json:"status"`
+	IsAgent     bool   `json:"is_agent"`
+	CreatedAt   int64  `json:"created_at"`
+}
+
+type distributionRewardRule struct {
+	Mode          int
+	Rate          int
+	FixedQuota    int
+	ReferralLimit int
+	IsAgent       bool
+}
+
 type DistributionGrantInput struct {
 	UserId           int
 	IncreasedQuota   int
@@ -116,6 +146,15 @@ func GetDistributionSetting() (*DistributionSetting, error) {
 			RewardRate:                 10,
 			FixedRewardQuota:           0,
 			ReferralLimit:              0,
+			NormalRewardMode:           DistributionRewardModeRate,
+			NormalRewardRate:           10,
+			NormalFixedRewardQuota:     0,
+			NormalReferralLimit:        5,
+			AgentRewardMode:            DistributionRewardModeRate,
+			AgentRewardRate:            10,
+			AgentFixedRewardQuota:      0,
+			AgentReferralLimit:         0,
+			SplitRuleInitialized:       true,
 			FreezeDays:                 0,
 			MinSettlementQuota:         0,
 			AdminRechargeTrigger:       false,
@@ -123,25 +162,34 @@ func GetDistributionSetting() (*DistributionSetting, error) {
 		}
 		return setting, DB.Create(setting).Error
 	}
+	if err == nil && !setting.SplitRuleInitialized {
+		initializeSplitDistributionRules(setting)
+		if saveErr := DB.Save(setting).Error; saveErr != nil {
+			return setting, saveErr
+		}
+	}
 	return setting, err
 }
 
 func UpdateDistributionSetting(setting *DistributionSetting) error {
-	if setting.RewardMode != DistributionRewardModeFixed {
-		setting.RewardMode = DistributionRewardModeRate
-	}
-	if setting.RewardRate < 0 {
-		setting.RewardRate = 0
-	}
-	if setting.RewardRate > 50 {
-		setting.RewardRate = 50
-	}
-	if setting.FixedRewardQuota < 0 {
-		setting.FixedRewardQuota = 0
-	}
-	if setting.ReferralLimit < 0 {
-		setting.ReferralLimit = 0
-	}
+	setting.RewardMode, setting.RewardRate, setting.FixedRewardQuota, setting.ReferralLimit = normalizeDistributionRule(
+		setting.RewardMode,
+		setting.RewardRate,
+		setting.FixedRewardQuota,
+		setting.ReferralLimit,
+	)
+	setting.NormalRewardMode, setting.NormalRewardRate, setting.NormalFixedRewardQuota, setting.NormalReferralLimit = normalizeDistributionRule(
+		setting.NormalRewardMode,
+		setting.NormalRewardRate,
+		setting.NormalFixedRewardQuota,
+		setting.NormalReferralLimit,
+	)
+	setting.AgentRewardMode, setting.AgentRewardRate, setting.AgentFixedRewardQuota, setting.AgentReferralLimit = normalizeDistributionRule(
+		setting.AgentRewardMode,
+		setting.AgentRewardRate,
+		setting.AgentFixedRewardQuota,
+		setting.AgentReferralLimit,
+	)
 	if setting.FreezeDays < 0 {
 		setting.FreezeDays = 0
 	}
@@ -158,6 +206,15 @@ func UpdateDistributionSetting(setting *DistributionSetting) error {
 	existing.RewardRate = setting.RewardRate
 	existing.FixedRewardQuota = setting.FixedRewardQuota
 	existing.ReferralLimit = setting.ReferralLimit
+	existing.NormalRewardMode = setting.NormalRewardMode
+	existing.NormalRewardRate = setting.NormalRewardRate
+	existing.NormalFixedRewardQuota = setting.NormalFixedRewardQuota
+	existing.NormalReferralLimit = setting.NormalReferralLimit
+	existing.AgentRewardMode = setting.AgentRewardMode
+	existing.AgentRewardRate = setting.AgentRewardRate
+	existing.AgentFixedRewardQuota = setting.AgentFixedRewardQuota
+	existing.AgentReferralLimit = setting.AgentReferralLimit
+	existing.SplitRuleInitialized = true
 	existing.FreezeDays = setting.FreezeDays
 	existing.MinSettlementQuota = setting.MinSettlementQuota
 	existing.AdminRechargeTrigger = setting.AdminRechargeTrigger
@@ -165,6 +222,31 @@ func UpdateDistributionSetting(setting *DistributionSetting) error {
 	existing.UpdatedBy = setting.UpdatedBy
 	*setting = *existing
 	return DB.Save(existing).Error
+}
+
+func initializeSplitDistributionRules(setting *DistributionSetting) {
+	setting.NormalRewardMode = setting.RewardMode
+	if setting.NormalRewardMode == 0 {
+		setting.NormalRewardMode = DistributionRewardModeRate
+	}
+	setting.NormalRewardRate = setting.RewardRate
+	if setting.NormalRewardRate == 0 {
+		setting.NormalRewardRate = 10
+	}
+	setting.NormalFixedRewardQuota = setting.FixedRewardQuota
+	setting.NormalReferralLimit = 5
+
+	setting.AgentRewardMode = setting.RewardMode
+	if setting.AgentRewardMode == 0 {
+		setting.AgentRewardMode = DistributionRewardModeRate
+	}
+	setting.AgentRewardRate = setting.RewardRate
+	if setting.AgentRewardRate == 0 {
+		setting.AgentRewardRate = 10
+	}
+	setting.AgentFixedRewardQuota = setting.FixedRewardQuota
+	setting.AgentReferralLimit = 0
+	setting.SplitRuleInitialized = true
 }
 
 func EnsureUserAffCode(userId int) (string, error) {
@@ -220,10 +302,11 @@ func GrantDistributionForQuotaIncrease(input DistributionGrantInput) {
 		return
 	}
 	var referrer User
-	if err := DB.Select("id", "status").First(&referrer, "id = ?", referrerId).Error; err != nil || referrer.Status != common.UserStatusEnabled {
+	if err := DB.Select("id", "status", "is_agent").First(&referrer, "id = ?", referrerId).Error; err != nil || referrer.Status != common.UserStatusEnabled {
 		return
 	}
-	reward := calculateDistributionReward(input.IncreasedQuota, setting)
+	rule := distributionRuleForReferrer(referrer, setting)
+	reward := calculateDistributionReward(input.IncreasedQuota, rule)
 	if reward <= 0 {
 		return
 	}
@@ -239,14 +322,14 @@ func GrantDistributionForQuotaIncrease(input DistributionGrantInput) {
 		if exists > 0 {
 			return nil
 		}
-		if setting.ReferralLimit > 0 {
+		if rule.ReferralLimit > 0 {
 			var count int64
 			if err := tx.Model(&DistributionCommissionRecord{}).
 				Where("referrer_user_id = ? AND referred_user_id = ? AND status <> ?", referrerId, input.UserId, DistributionCommissionStatusInvalid).
 				Count(&count).Error; err != nil {
 				return err
 			}
-			if int(count) >= setting.ReferralLimit {
+			if int(count) >= rule.ReferralLimit {
 				return nil
 			}
 		}
@@ -258,9 +341,10 @@ func GrantDistributionForQuotaIncrease(input DistributionGrantInput) {
 			SourceDetail:     input.SourceDetail,
 			IncreasedQuota:   input.IncreasedQuota,
 			CommissionQuota:  reward,
-			CommissionType:   setting.RewardMode,
-			RewardRate:       setting.RewardRate,
-			ReferralLimit:    setting.ReferralLimit,
+			CommissionType:   rule.Mode,
+			RewardRate:       rule.Rate,
+			ReferralLimit:    rule.ReferralLimit,
+			ReferrerIsAgent:  rule.IsAgent,
 			FreezeUntil:      freezeUntil,
 			Status:           DistributionCommissionStatusPending,
 			TemporaryAffCode: tempCode,
@@ -288,11 +372,86 @@ func isAdminDistributionSource(source string) bool {
 	return source == "admin" || source == DistributionSourceAdminTopupComplete
 }
 
-func calculateDistributionReward(increasedQuota int, setting *DistributionSetting) int {
-	if setting.RewardMode == DistributionRewardModeFixed {
-		return setting.FixedRewardQuota
+func normalizeDistributionRule(mode int, rate int, fixedQuota int, referralLimit int) (int, int, int, int) {
+	if mode != DistributionRewardModeFixed {
+		mode = DistributionRewardModeRate
 	}
-	return int(math.Round(float64(increasedQuota) * float64(setting.RewardRate) / 100.0))
+	if rate < 0 {
+		rate = 0
+	}
+	if rate > 50 {
+		rate = 50
+	}
+	if fixedQuota < 0 {
+		fixedQuota = 0
+	}
+	if referralLimit < 0 {
+		referralLimit = 0
+	}
+	return mode, rate, fixedQuota, referralLimit
+}
+
+func distributionRuleForReferrer(referrer User, setting *DistributionSetting) distributionRewardRule {
+	if setting == nil {
+		return distributionRewardRule{
+			Mode:          DistributionRewardModeRate,
+			Rate:          10,
+			FixedQuota:    0,
+			ReferralLimit: 5,
+			IsAgent:       referrer.IsAgent,
+		}
+	}
+	baseMode := setting.RewardMode
+	baseRate := setting.RewardRate
+	baseFixed := setting.FixedRewardQuota
+	if baseRate == 0 {
+		baseRate = 10
+	}
+	if referrer.IsAgent {
+		mode := setting.AgentRewardMode
+		rate := setting.AgentRewardRate
+		fixed := setting.AgentFixedRewardQuota
+		limit := setting.AgentReferralLimit
+		if mode == 0 {
+			mode = baseMode
+		}
+		if rate == 0 {
+			rate = baseRate
+		}
+		if fixed == 0 {
+			fixed = baseFixed
+		}
+		mode, rate, fixed, limit = normalizeDistributionRule(mode, rate, fixed, limit)
+		return distributionRewardRule{Mode: mode, Rate: rate, FixedQuota: fixed, ReferralLimit: limit, IsAgent: true}
+	}
+	mode := setting.NormalRewardMode
+	rate := setting.NormalRewardRate
+	fixed := setting.NormalFixedRewardQuota
+	limit := setting.NormalReferralLimit
+	if mode == 0 {
+		mode = baseMode
+	}
+	if rate == 0 {
+		rate = baseRate
+	}
+	if fixed == 0 {
+		fixed = baseFixed
+	}
+	if limit == 0 && setting.ReferralLimit > 0 {
+		limit = setting.ReferralLimit
+	}
+	if limit == 0 {
+		limit = 5
+	}
+	mode, rate, fixed, limit = normalizeDistributionRule(mode, rate, fixed, limit)
+	return distributionRewardRule{Mode: mode, Rate: rate, FixedQuota: fixed, ReferralLimit: limit, IsAgent: false}
+}
+
+func calculateDistributionReward(increasedQuota int, rule distributionRewardRule) int {
+	if rule.Mode == DistributionRewardModeFixed {
+		return rule.FixedQuota
+	}
+	return int(math.Round(float64(increasedQuota) * float64(rule.Rate) / 100.0))
 }
 
 func GetDistributionOverview(userId int, baseURL string) (*DistributionOverview, error) {
@@ -454,4 +613,34 @@ func SearchDistributionTransfers(userId int, pageInfo *common.PageInfo) ([]Distr
 	var transfers []DistributionTransfer
 	err := query.Order("id desc").Limit(pageInfo.GetPageSize()).Offset(pageInfo.GetStartIdx()).Find(&transfers).Error
 	return transfers, total, err
+}
+
+func SearchDistributionAgents(keyword string, pageInfo *common.PageInfo) ([]DistributionAgentUser, int64, error) {
+	query := DB.Model(&User{}).Where("deleted_at IS NULL")
+	keyword = strings.TrimSpace(keyword)
+	if keyword != "" {
+		if id, err := strconv.Atoi(keyword); err == nil {
+			query = query.Where("id = ? OR username LIKE ? OR display_name LIKE ?", id, keyword+"%", keyword+"%")
+		} else {
+			query = query.Where("username LIKE ? OR display_name LIKE ? OR email LIKE ?", keyword+"%", keyword+"%", keyword+"%")
+		}
+	}
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var users []DistributionAgentUser
+	err := query.Select("id", "username", "display_name", "email", "status", "is_agent", "created_at").
+		Order("id desc").
+		Limit(pageInfo.GetPageSize()).
+		Offset(pageInfo.GetStartIdx()).
+		Find(&users).Error
+	return users, total, err
+}
+
+func UpdateDistributionAgent(userId int, isAgent bool) error {
+	if userId <= 0 {
+		return errors.New("invalid user id")
+	}
+	return DB.Model(&User{}).Where("id = ? AND deleted_at IS NULL", userId).Update("is_agent", isAgent).Error
 }

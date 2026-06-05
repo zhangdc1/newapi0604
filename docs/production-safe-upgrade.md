@@ -125,6 +125,8 @@ If any required item fails in staging, do not touch production.
 
 Keep production PostgreSQL and Redis exactly as they are. Change only the New API app image tag or application code path.
 
+If you want to keep the original classic frontend, confirm after startup that the frontend theme option is `classic`. Do not switch `theme.frontend` to `default` unless you intentionally want the new frontend.
+
 Recommended image-tag flow:
 
 ```bash
