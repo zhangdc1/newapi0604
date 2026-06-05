@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -106,6 +107,30 @@ type DistributionInviteSummary struct {
 	TotalIncreasedQuota int64  `json:"total_increased_quota"`
 	TotalCommission     int64  `json:"total_commission_quota"`
 	RewardCount         int64  `json:"reward_count"`
+}
+
+type DistributionAdminInviteSummary struct {
+	DistributionInviteSummary
+	ReferrerUserId      int    `json:"referrer_user_id"`
+	ReferrerUsername    string `json:"referrer_username"`
+	ReferrerDisplayName string `json:"referrer_display_name"`
+}
+
+type DistributionReferrerSummary struct {
+	Id               int    `json:"id"`
+	Username         string `json:"username"`
+	DisplayName      string `json:"display_name"`
+	Email            string `json:"email"`
+	Status           int    `json:"status"`
+	IsAgent          bool   `json:"is_agent"`
+	CreatedAt        int64  `json:"created_at"`
+	InviteCount      int64  `json:"invite_count"`
+	EffectiveInvites int64  `json:"effective_invites"`
+	PendingQuota     int64  `json:"pending_quota"`
+	AvailableQuota   int64  `json:"available_quota"`
+	SettledQuota     int64  `json:"settled_quota"`
+	TotalEarnedQuota int64  `json:"total_earned_quota"`
+	LastRewardAt     int64  `json:"last_reward_at"`
 }
 
 type DistributionAgentUser struct {
@@ -516,6 +541,63 @@ func GetDistributionInvites(userId int, pageInfo *common.PageInfo) ([]Distributi
 	return items, total, nil
 }
 
+func SearchDistributionInvites(referrerId int, pageInfo *common.PageInfo) ([]DistributionAdminInviteSummary, int64, error) {
+	query := DB.Model(&User{}).Where("inviter_id <> 0")
+	if referrerId > 0 {
+		query = query.Where("inviter_id = ?", referrerId)
+	}
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var users []User
+	if err := query.Select("id", "username", "display_name", "created_at", "inviter_id").
+		Order("id desc").
+		Limit(pageInfo.GetPageSize()).
+		Offset(pageInfo.GetStartIdx()).
+		Find(&users).Error; err != nil {
+		return nil, 0, err
+	}
+	referrerIds := make([]int, 0, len(users))
+	for _, u := range users {
+		referrerIds = append(referrerIds, u.InviterId)
+	}
+	referrers := map[int]User{}
+	if len(referrerIds) > 0 {
+		var referrerUsers []User
+		if err := DB.Select("id", "username", "display_name").Where("id IN ?", referrerIds).Find(&referrerUsers).Error; err != nil {
+			return nil, 0, err
+		}
+		for _, referrer := range referrerUsers {
+			referrers[referrer.Id] = referrer
+		}
+	}
+	items := make([]DistributionAdminInviteSummary, 0, len(users))
+	for _, u := range users {
+		item := DistributionAdminInviteSummary{
+			DistributionInviteSummary: DistributionInviteSummary{
+				Id:          u.Id,
+				Username:    u.Username,
+				DisplayName: u.DisplayName,
+				CreatedAt:   u.CreatedAt,
+			},
+			ReferrerUserId: u.InviterId,
+		}
+		if referrer, ok := referrers[u.InviterId]; ok {
+			item.ReferrerUsername = referrer.Username
+			item.ReferrerDisplayName = referrer.DisplayName
+		}
+		DB.Model(&DistributionCommissionRecord{}).Where("referrer_user_id = ? AND referred_user_id = ? AND status <> ?", u.InviterId, u.Id, DistributionCommissionStatusInvalid).
+			Select("COALESCE(SUM(increased_quota), 0)").Scan(&item.TotalIncreasedQuota)
+		DB.Model(&DistributionCommissionRecord{}).Where("referrer_user_id = ? AND referred_user_id = ? AND status <> ?", u.InviterId, u.Id, DistributionCommissionStatusInvalid).
+			Select("COALESCE(SUM(commission_quota), 0)").Scan(&item.TotalCommission)
+		DB.Model(&DistributionCommissionRecord{}).Where("referrer_user_id = ? AND referred_user_id = ? AND status <> ?", u.InviterId, u.Id, DistributionCommissionStatusInvalid).
+			Count(&item.RewardCount)
+		items = append(items, item)
+	}
+	return items, total, nil
+}
+
 func GetUserDistributionRecords(userId int, pageInfo *common.PageInfo) ([]DistributionCommissionRecord, int64, error) {
 	var records []DistributionCommissionRecord
 	var total int64
@@ -636,6 +718,88 @@ func SearchDistributionAgents(keyword string, pageInfo *common.PageInfo) ([]Dist
 		Offset(pageInfo.GetStartIdx()).
 		Find(&users).Error
 	return users, total, err
+}
+
+func SearchDistributionReferrers(keyword string, sortBy string, sortOrder string, pageInfo *common.PageInfo) ([]DistributionReferrerSummary, int64, error) {
+	query := DB.Model(&User{}).Where("deleted_at IS NULL")
+	keyword = strings.TrimSpace(keyword)
+	if keyword != "" {
+		if id, err := strconv.Atoi(keyword); err == nil {
+			query = query.Where("id = ? OR username LIKE ? OR display_name LIKE ?", id, keyword+"%", keyword+"%")
+		} else {
+			query = query.Where("username LIKE ? OR display_name LIKE ? OR email LIKE ?", keyword+"%", keyword+"%", keyword+"%")
+		}
+	}
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var users []DistributionReferrerSummary
+	if err := query.Select("id", "username", "display_name", "email", "status", "is_agent", "created_at").Find(&users).Error; err != nil {
+		return nil, 0, err
+	}
+	now := common.GetTimestamp()
+	for idx := range users {
+		userId := users[idx].Id
+		DB.Model(&User{}).Where("inviter_id = ?", userId).Count(&users[idx].InviteCount)
+		DB.Model(&DistributionCommissionRecord{}).Where("referrer_user_id = ? AND status <> ?", userId, DistributionCommissionStatusInvalid).
+			Distinct("referred_user_id").Count(&users[idx].EffectiveInvites)
+		DB.Model(&DistributionCommissionRecord{}).Where("referrer_user_id = ? AND status = ? AND freeze_until > ?", userId, DistributionCommissionStatusPending, now).
+			Select("COALESCE(SUM(commission_quota), 0)").Scan(&users[idx].PendingQuota)
+		DB.Model(&DistributionCommissionRecord{}).Where("referrer_user_id = ? AND status = ? AND freeze_until <= ?", userId, DistributionCommissionStatusPending, now).
+			Select("COALESCE(SUM(commission_quota), 0)").Scan(&users[idx].AvailableQuota)
+		DB.Model(&DistributionCommissionRecord{}).Where("referrer_user_id = ? AND status = ?", userId, DistributionCommissionStatusSettled).
+			Select("COALESCE(SUM(commission_quota), 0)").Scan(&users[idx].SettledQuota)
+		users[idx].TotalEarnedQuota = users[idx].PendingQuota + users[idx].AvailableQuota + users[idx].SettledQuota
+		DB.Model(&DistributionCommissionRecord{}).Where("referrer_user_id = ?", userId).
+			Select("COALESCE(MAX(created_at), 0)").Scan(&users[idx].LastRewardAt)
+	}
+	sortDistributionReferrers(users, sortBy, sortOrder)
+	start := pageInfo.GetStartIdx()
+	if start >= len(users) {
+		return []DistributionReferrerSummary{}, total, nil
+	}
+	end := pageInfo.GetEndIdx()
+	if end > len(users) {
+		end = len(users)
+	}
+	return users[start:end], total, nil
+}
+
+func sortDistributionReferrers(items []DistributionReferrerSummary, sortBy string, sortOrder string) {
+	sortBy = strings.ToLower(strings.TrimSpace(sortBy))
+	sortOrder = strings.ToLower(strings.TrimSpace(sortOrder))
+	if sortOrder != "asc" {
+		sortOrder = "desc"
+	}
+	value := func(item DistributionReferrerSummary) int64 {
+		switch sortBy {
+		case "total_earned_quota":
+			return item.TotalEarnedQuota
+		case "invite_count":
+			return item.InviteCount
+		case "effective_invites":
+			return item.EffectiveInvites
+		case "last_reward_at":
+			return item.LastRewardAt
+		default:
+			return item.AvailableQuota
+		}
+	}
+	sort.SliceStable(items, func(i, j int) bool {
+		left := value(items[i])
+		right := value(items[j])
+		if left == right {
+			if sortOrder == "asc" {
+				return items[i].Id < items[j].Id
+			}
+			return items[i].Id > items[j].Id
+		}
+		if sortOrder == "asc" {
+			return left < right
+		}
+		return left > right
+	})
 }
 
 func UpdateDistributionAgent(userId int, isAgent bool) error {

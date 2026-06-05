@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"net/http"
 	"strconv"
 	"strings"
 
@@ -120,6 +119,18 @@ func AdminGetDistributionRecords(c *gin.Context) {
 	common.ApiSuccess(c, pageInfo)
 }
 
+func AdminGetDistributionReferrers(c *gin.Context) {
+	pageInfo := common.GetPageQuery(c)
+	items, total, err := model.SearchDistributionReferrers(c.Query("keyword"), c.Query("sort_by"), c.Query("sort_order"), pageInfo)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(items)
+	common.ApiSuccess(c, pageInfo)
+}
+
 func AdminGetDistributionTransfers(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
 	userId, _ := strconv.Atoi(c.Query("user_id"))
@@ -136,11 +147,7 @@ func AdminGetDistributionTransfers(c *gin.Context) {
 func AdminGetDistributionInvites(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
 	referrerId, _ := strconv.Atoi(c.Query("referrer_user_id"))
-	if referrerId <= 0 {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "referrer_user_id is required"})
-		return
-	}
-	items, total, err := model.GetDistributionInvites(referrerId, pageInfo)
+	items, total, err := model.SearchDistributionInvites(referrerId, pageInfo)
 	if err != nil {
 		common.ApiError(c, err)
 		return

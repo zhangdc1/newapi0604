@@ -156,6 +156,7 @@ func SetApiRouter(router *gin.Engine) {
 		{
 			distributionAdminRoute.GET("/settings", controller.AdminGetDistributionSetting)
 			distributionAdminRoute.PUT("/settings", controller.AdminUpdateDistributionSetting)
+			distributionAdminRoute.GET("/referrers", controller.AdminGetDistributionReferrers)
 			distributionAdminRoute.GET("/commission-records", controller.AdminGetDistributionRecords)
 			distributionAdminRoute.GET("/transfers", controller.AdminGetDistributionTransfers)
 			distributionAdminRoute.GET("/invites", controller.AdminGetDistributionInvites)
