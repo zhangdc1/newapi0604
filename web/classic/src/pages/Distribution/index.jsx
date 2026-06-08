@@ -54,6 +54,7 @@ const defaultAdminFilters = {
 const getItems = (payload) => payload?.data?.items || [];
 const getTotal = (payload) => payload?.data?.total || 0;
 const renderTime = (value) => (value ? timestamp2string(value) : '-');
+const distributionTableScroll = { x: 'max-content', y: 420 };
 
 function numberValue(value, fallback = 0) {
   const parsed = Number(value);
@@ -475,6 +476,7 @@ export default function Distribution() {
               loading={loading}
               dataSource={agents}
               pagination={false}
+              scroll={distributionTableScroll}
               rowKey='id'
               columns={[
                 { title: 'ID', dataIndex: 'id' },
@@ -570,6 +572,7 @@ export default function Distribution() {
                   loading={loading}
                   dataSource={adminReferrers}
                   pagination={false}
+                  scroll={distributionTableScroll}
                   rowKey='id'
                   columns={[
                     { title: 'ID', dataIndex: 'id' },
@@ -665,6 +668,7 @@ export default function Distribution() {
                   loading={loading}
                   dataSource={adminRecords}
                   pagination={false}
+                  scroll={distributionTableScroll}
                   rowKey='id'
                   columns={[
                     { title: 'ID', dataIndex: 'id' },
@@ -732,6 +736,7 @@ export default function Distribution() {
                   loading={loading}
                   dataSource={adminInvites}
                   pagination={false}
+                  scroll={distributionTableScroll}
                   rowKey='id'
                   columns={[
                     {
@@ -768,6 +773,7 @@ export default function Distribution() {
             loading={loading}
             dataSource={records}
             pagination={false}
+            scroll={distributionTableScroll}
             rowKey='id'
             columns={[
               { title: 'ID', dataIndex: 'id' },
@@ -807,6 +813,7 @@ export default function Distribution() {
             loading={loading}
             dataSource={invites}
             pagination={false}
+            scroll={distributionTableScroll}
             rowKey='id'
             columns={[
               { title: 'ID', dataIndex: 'id' },

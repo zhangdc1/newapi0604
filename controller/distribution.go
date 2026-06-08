@@ -6,11 +6,15 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 
 	"github.com/gin-gonic/gin"
 )
 
 func distributionBaseURL(c *gin.Context) string {
+	if serverAddress := strings.TrimRight(strings.TrimSpace(system_setting.ServerAddress), "/"); serverAddress != "" {
+		return serverAddress
+	}
 	scheme := "http"
 	if c.Request.TLS != nil || strings.EqualFold(c.GetHeader("X-Forwarded-Proto"), "https") {
 		scheme = "https"
